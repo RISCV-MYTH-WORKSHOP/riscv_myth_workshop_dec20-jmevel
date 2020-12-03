@@ -1,0 +1,2 @@
+chmod 777 rv32im.sh
+./rv32im.sh
