@@ -48,7 +48,7 @@
                         : ($op[2:0] == 3'b011 // 3
                            ? $quot
                            : ($op[2:0] == 3'b100 // 4
-                              ? $mem // recall
+                              ? >>2$mem // recall
                               : >>2$out // 5 or more: do nothing (mem or nothing)
                              )
                           )
