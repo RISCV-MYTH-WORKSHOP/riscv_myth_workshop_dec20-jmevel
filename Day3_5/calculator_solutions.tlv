@@ -12,25 +12,29 @@
       @0
          $reset = *reset;
          
-         $val1[31:0] = >>1$out;
-         $val2[31:0] = $rand1[3:0];
+      @1  
+         $valid[0] = $reset ? 0 : >>1$valid[0] + 1;
+         
+         $val1[31:0] = >>2$out[31:0];
+         $val2[31:0] = $rand2[3:0];
          
          $sum[31:0] = $val1 + $val2;
          $diff[31:0] = $val1 - $val2;
          $prod[31:0] = $val1 * $val2;
          $quot[31:0] = $val1 / $val2;
          
-         $out[31:0] = 
-            $reset
+      @2
+         $out[31:0] =
+            ($reset || !$valid)
             ? 32'b0
-            : ($op[1:0] == 2'b00 // 0
+            : (
+               $op[1:0]==2'b00 // 0
                ? $sum
-               : ($op[1:0] == 2'b01 // 1
+               : ($op[1:0]==2'b01 // 1
                   ? $diff
-                  : ($op[1:0] == 2'b10 // 2
+                  : ($op[1:0]==2'b10 // 2
                      ? $prod
-                     : $quot // 3
-                    )
+                     : $quot) // 3
                  )
               );
          
@@ -44,7 +48,7 @@
       //  o $rand2[3:0]
       //  o $op[x:0]
       
-   m4+cal_viz(@0) // Arg: Pipeline stage represented by viz, should be atleast equal to last stage of CALCULATOR logic.
+   m4+cal_viz(@2) // Arg: Pipeline stage represented by viz, should be atleast equal to last stage of CALCULATOR logic.
    
    // Assert these to end simulation (before Makerchip cycle limit).
    *passed = *cyc_cnt > 40;
