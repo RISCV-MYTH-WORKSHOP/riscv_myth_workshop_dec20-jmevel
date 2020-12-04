@@ -14,30 +14,48 @@
          
       @1  
          $valid[0] = $reset ? 0 : >>1$valid[0] + 1;
-         
-         $val1[31:0] = >>2$out[31:0];
-         $val2[31:0] = $rand2[3:0];
-         
-         $sum[31:0] = $val1 + $val2;
-         $diff[31:0] = $val1 - $val2;
-         $prod[31:0] = $val1 * $val2;
-         $quot[31:0] = $val1 / $val2;
-         
-      @2
-         $out[31:0] =
-            ($reset || !$valid)
-            ? 32'b0
-            : (
-               $op[1:0]==2'b00 // 0
-               ? $sum
-               : ($op[1:0]==2'b01 // 1
-                  ? $diff
-                  : ($op[1:0]==2'b10 // 2
-                     ? $prod
-                     : $quot) // 3
-                 )
-              );
-         
+         $valid_or_reset[0] = $valid || $reset;
+      ?$valid_or_reset
+         @1
+            $val1[31:0] = >>2$out[31:0];
+            $val2[31:0] = $rand1[3:0];
+            
+            $sum[31:0] = $val1 + $val2;
+            $diff[31:0] = $val1 - $val2;
+            $prod[31:0] = $val1 * $val2;
+            $quot[31:0] = $val1 / $val2;
+            
+         @2
+            $mem[31:0] = 
+               $reset 
+               ? 32'b0 
+               : ($op[2:0] == 3'b101 // 5
+                  ? >>2$out
+                  : >>2$mem
+                 );
+            
+            
+            $out[31:0] =
+               $reset
+               ? 32'b0
+               : (
+                  $op[2:0] == 3'b000 // 0
+                  ? $sum
+                  : ($op[2:0] == 3'b001 // 1
+                     ? $diff
+                     : ($op[2:0] == 3'b010 // 2
+                        ? $prod
+                        : ($op[2:0] == 3'b011 // 3
+                           ? $quot
+                           : ($op[2:0] == 3'b100 // 4
+                              ? $mem // recall
+                              : >>2$out // 5 or more: do nothing (mem or nothing)
+                             )
+                          )
+                       )
+                    )
+                 );
+            
 
       // Macro instantiations for calculator visualization(disabled by default).
       // Uncomment to enable visualisation, and also,
