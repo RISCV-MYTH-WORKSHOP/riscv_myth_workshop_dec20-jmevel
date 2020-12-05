@@ -57,6 +57,7 @@
             : >>1$pc + 32'd4;
          
       @1  
+         /***** FETCH *****/
          $imem_rd_addr[M4_IMEM_INDEX_CNT-1:0] = $pc[M4_IMEM_INDEX_CNT+1:2];
          
          $imem_rd_en = !$reset;
@@ -66,6 +67,99 @@
             
       @1
          $instr[31:0] = $imem_rd_data[31:0];
+         /***** FETCH END*****/
+         
+         /***** DECODE *****/
+         
+         // The following decode logic is the implementation of the RISC-V ISA
+         // cf: riscv-spec-20191213.pdf 2.3 Immediate Encoding Variants page 16 and 17
+         
+         /** Determine instruction type **/
+         
+         // opcode is stored in $instr[6:0] (page 16)
+         // but since the first 2 bits are always 1 we simply ignore them
+         // ==? TL-VERILOG feature to compare with a "don't care (x)" value
+         $is_i_instr = $instr[6:2] ==? 5'b0000x ||
+                       $instr[6:2] ==? 5'b001x0 ||
+                       $instr[6:2] ==  5'b11001;
+         
+         $is_s_instr = $instr[6:2] ==? 5'b0100x;
+         
+         $is_b_instr = $instr[6:2] ==  5'b11000;
+         
+         $is_u_instr = $instr[6:2] ==? 5'b0x101;
+         
+         $is_j_instr = $instr[6:2] ==  5'b11011;
+         
+         $is_r_instr = $instr[6:2] ==  5'b01011 ||
+                       $instr[6:2] ==? 5'b01x00 ||
+                       $instr[6:2] ==  5'b10100;
+         /** Determine instruction type END **/
+         
+         /** Form immediate value based on instruction type (page 17) **/
+         // There's no immediate value in the case of an R-Type
+         $imm_valid = $is_i_instr || $is_s_instr || $is_b_instr || $is_u_instr || $is_j_instr;
+      ?$imm_valid   
+         @1
+            // {x,} = concatenation
+            // {21{$x[31]}} = 21 times the value of bit 31 of $x
+            
+            $imm[31:0] =  $is_i_instr ? { {21{$instr[31]}}, $instr[30:20] } 
+                        : $is_s_instr ? { {21{$instr[31]}}, $instr[30:25], $instr[11:7] }
+                        : $is_b_instr ? { {20{$instr[31]}}, $instr[7], $instr[30:25], $instr[11:8], 1'b0 } 
+                        : $is_u_instr ? { $instr[31:12], 12'b000000000000 } 
+                        : { {12{$instr[31]}}, $instr[19:12], $instr[20], $instr[30:21], 1'b0 }; // Last one must be $is_j_instr
+      @1   
+         /** Form immediate value based on instruction type END **/
+         
+         /** Form other fields' values based on instruction type (page 16) **/
+         // Some fields are missing depending of the instruction type
+         $funct7_valid = $is_r_instr;
+         $rs2_valid = $is_r_instr || $is_s_instr || $is_b_instr;
+         $rs1_valid = $is_r_instr || $is_i_instr || $is_s_instr || $is_b_instr;
+         $funct3_valid = $rs1_valid; // they're both in the same instruction types
+         $rd_valid = $is_r_instr || $is_i_instr || $is_u_instr || $is_j_instr;
+         // opcode is always valid (in all instruction types)
+      ?$funct7_valid
+         @1
+            $funct7[6:0] = $instr[31:25];
+      ?$rs2_valid
+         @1
+            $rs2[4:0] = $instr[24:20];
+      ?$rs1_valid
+         @1
+            $rs1[4:0] = $instr[19:15];
+      ?$funct3_valid
+         @1
+            $funct3[2:0] = $instr[14:12];
+      ?$rd_valid
+         @1
+            $rd[4:0] = $instr[11:7];
+      @1
+         $opcode[6:0] = $instr[6:0];
+         /** Form other fields' values based on instruction type END **/
+         
+         /** Instruction decode **/
+         // all bits needed to decode our instruction (cf: MYTH Workshop 2 RISC-V.pdf page 13)
+         $dec_bits[10:0] = {$funct7[5], $funct3, $opcode};
+         
+         // funct7[5] bit isn't needed for some instructions so we use x (don't care)
+         $is_beq  = $dec_bits ==? 11'bx_000_1100011;
+         $is_bne  = $dec_bits ==? 11'bx_001_1100011;
+         $is_blt  = $dec_bits ==? 11'bx_100_1100011;
+         $is_bge  = $dec_bits ==? 11'bx_101_1100011;
+         $is_bltu = $dec_bits ==? 11'bx_110_1100011;
+         $is_bgeu = $dec_bits ==? 11'bx_111_1100011;
+         $is_addi = $dec_bits ==? 11'bx_000_0010011;
+         $is_add  = $dec_bits ==? 11'b0_000_0110011;
+         
+         // Will suppress warning for all these variables
+         `BOGUS_USE($is_beq $is_bne $is_blt $is_bge $is_bltu $is_bgeu $is_addi $is_add);
+         /** Instruction decode END **/
+         
+         
+         
+         
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
       //       be sure to avoid having unassigned signals (which you might be using for random inputs)
