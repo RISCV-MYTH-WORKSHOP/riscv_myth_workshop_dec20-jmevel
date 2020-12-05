@@ -41,7 +41,9 @@
       @0
          $reset = *reset;
          
-         // Program Counter: stores the ADDRESS of the current instruction
+         /***** PROGRAM COUNTER *****/
+         
+         // Stores the ADDRESS of the current instruction
          $pc[31:0] = 
              // We want to make sure we start with the right instruction at address 0
              // if we said "after reset: increment by 4 bytes"
@@ -56,6 +58,7 @@
              // hence we have to add 4 
             : >>1$pc + 32'd4;
          
+         /***** PROGRAM COUNTER END *****/
       @1  
          /***** FETCH *****/
          $imem_rd_addr[M4_IMEM_INDEX_CNT-1:0] = $pc[M4_IMEM_INDEX_CNT+1:2];
@@ -157,8 +160,17 @@
          `BOGUS_USE($is_beq $is_bne $is_blt $is_bge $is_bltu $is_bgeu $is_addi $is_add);
          /** Instruction decode END **/
          
+         /***** DECODE END *****/
          
+         /***** REGISTER FILE READ *****/
          
+         $rf_rd_en1 = $rs1_valid;
+         $rf_rd_en2 = $rs2_valid;
+         
+         $rf_rd_index1[4:0] = $rs1;
+         $rf_rd_index2[4:0] = $rs2;
+         
+         /***** REGISTER FILE READ END *****/
          
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
@@ -177,7 +189,7 @@
    //  o CPU visualization
    |cpu
       m4+imem(@1)    // Args: (read stage)
-      //m4+rf(@1, @1)  // Args: (read stage, write stage) - if equal, no register bypass is required
+      m4+rf(@1, @1)  // Args: (read stage, write stage) - if equal, no register bypass is required
       //m4+dmem(@4)    // Args: (read/write stage)
    
    m4+cpu_viz(@4)    // For visualisation, argument should be at least equal to the last stage of CPU logic
