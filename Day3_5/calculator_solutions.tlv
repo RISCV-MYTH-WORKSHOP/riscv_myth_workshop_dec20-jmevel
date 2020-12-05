@@ -26,14 +26,9 @@
             $quot[31:0] = $val1 / $val2;
             
          @2
-            $mem[31:0] = 
-               $reset 
-               ? 32'b0 
-               : ($op[2:0] == 3'b101 // 5
-                  ? >>2$out
-                  : >>2$mem
-                 );
-            
+            $mem[31:0] = $reset ? 32'b0
+                          : $op[2:0] == 3'b101 ? >>2$out // 5
+                          : >>2$mem; // do nothing (keep the value we had before)
             
             $out[31:0] = $reset ? 32'b0
                          : $op[2:0] == 3'b000 ? $sum  // 0
@@ -41,7 +36,11 @@
                          : $op[2:0] == 3'b010 ? $prod // 2
                          : $op[2:0] == 3'b011 ? $quot // 3
                          : $op[2:0] == 3'b100 ? >>2$mem // 4: recall
-                         : >>2$out; // 5 or more: do nothing (mem or nothing)
+                         : >>2$out; // 5 or more (mem or nothing): do nothing (keep the value we had before)
+            
+            // rem: every statement is concurrent with every other
+            // meaning we can't use $mem in the $out statement
+            // we must use the value of $mem at the previous transaction 2 clock cycles before (>>2$mem)
             
 
       // Macro instantiations for calculator visualization(disabled by default).
