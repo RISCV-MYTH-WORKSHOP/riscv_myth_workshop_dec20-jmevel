@@ -35,26 +35,13 @@
                  );
             
             
-            $out[31:0] =
-               $reset
-               ? 32'b0
-               : (
-                  $op[2:0] == 3'b000 // 0
-                  ? $sum
-                  : ($op[2:0] == 3'b001 // 1
-                     ? $diff
-                     : ($op[2:0] == 3'b010 // 2
-                        ? $prod
-                        : ($op[2:0] == 3'b011 // 3
-                           ? $quot
-                           : ($op[2:0] == 3'b100 // 4
-                              ? >>2$mem // recall
-                              : >>2$out // 5 or more: do nothing (mem or nothing)
-                             )
-                          )
-                       )
-                    )
-                 );
+            $out[31:0] = $reset ? 32'b0
+                         : $op[2:0] == 3'b000 ? $sum  // 0
+                         : $op[2:0] == 3'b001 ? $diff // 1
+                         : $op[2:0] == 3'b010 ? $prod // 2
+                         : $op[2:0] == 3'b011 ? $quot // 3
+                         : $op[2:0] == 3'b100 ? >>2$mem // 4: recall
+                         : >>2$out; // 5 or more: do nothing (mem or nothing)
             
 
       // Macro instantiations for calculator visualization(disabled by default).
