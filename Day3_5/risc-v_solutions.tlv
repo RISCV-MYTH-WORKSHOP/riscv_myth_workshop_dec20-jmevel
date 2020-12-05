@@ -162,8 +162,9 @@
          
          /***** DECODE END *****/
          
-         /***** REGISTER FILE READ *****/
+         /***** REGISTER FILE *****/
          
+         /** Register File Read **/
          // Inputs: reading the sources that are specified in the instructions
          // if reset: back to original zero values
          // (cf (line 123): https://raw.githubusercontent.com/stevehoover/RISC-V_MYTH_Workshop/c1719d5b338896577b79ee76c2f443ca2a76e14f/tlv_lib/risc-v_shell_lib.tlv)
@@ -175,15 +176,35 @@
          // Outputs: Reading the destination registers
          $src1_value[31:0] = $rf_rd_data1;
          $src2_value[31:0] = $rf_rd_data2;
+         /** Register File Read END **/
          
          /** ALU: Arithmetic logic unit **/
          $result[31:0] = 
               $is_addi ? $src1_value + $imm
             : $is_add  ? $src1_value + $src2_value
             : 32'bx;
-         /** ALU: Arithmetic logic unit END **/
+         /** ALU: Arithmetic logic unit END**/
          
-         /***** REGISTER FILE READ END *****/
+         /** Register File Write **/
+         
+         // we never write in register 0
+         // this register always hold the value 0 (RISC-V ISA)
+         $rd_not_x0_register = !($rd[4:0] == 5'b0);
+         $write_in_rf = $reset || ($rd_valid && $rd_not_x0_register);
+         
+      // I could have implemented this in another way by using >>2
+      // to set the value of the last transaction in case of the x0 register
+      // I just prefer this way because it's not directly refering 
+      // to the number of clock cycles we use in our transactions
+      ?$write_in_rf
+         @1
+            $rf_wr_index[4:0] = reset ? 5'b0  : $rd[4:0];
+            $rf_wr_data[31:0] = reset ? 32'b0 : $result;
+            
+      @1
+         /** Register File Write END **/
+         
+         /***** REGISTER FILE END *****/
          
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
