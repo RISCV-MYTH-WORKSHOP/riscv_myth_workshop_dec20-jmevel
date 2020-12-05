@@ -156,7 +156,7 @@
          $is_addi = $dec_bits ==? 11'bx_000_0010011;
          $is_add  = $dec_bits ==? 11'b0_000_0110011;
          
-         // Will suppress warning for all these variables
+         // Will suppress warnings for all these variables
          `BOGUS_USE($is_beq $is_bne $is_blt $is_bge $is_bltu $is_bgeu $is_addi $is_add);
          /** Instruction decode END **/
          
@@ -164,11 +164,24 @@
          
          /***** REGISTER FILE READ *****/
          
-         $rf_rd_en1 = $rs1_valid;
-         $rf_rd_en2 = $rs2_valid;
+         // Inputs: reading the sources that are specified in the instructions
+         // if reset: back to original zero values
+         // (cf (line 123): https://raw.githubusercontent.com/stevehoover/RISC-V_MYTH_Workshop/c1719d5b338896577b79ee76c2f443ca2a76e14f/tlv_lib/risc-v_shell_lib.tlv)
+         $rf_rd_en1 = $reset ? 1'b0 : $rs1_valid;
+         $rf_rd_en2 = $reset ? 1'b0 : $rs2_valid;
+         $rf_rd_index1[4:0] = $reset ? 5'b0 : $rs1;
+         $rf_rd_index2[4:0] = $reset ? 5'b0 : $rs2;
          
-         $rf_rd_index1[4:0] = $rs1;
-         $rf_rd_index2[4:0] = $rs2;
+         // Outputs: Reading the destination registers
+         $src1_value[31:0] = $rf_rd_data1;
+         $src2_value[31:0] = $rf_rd_data2;
+         
+         /** ALU: Arithmetic logic unit **/
+         $result[31:0] = 
+              $is_addi ? $src1_value + $imm
+            : $is_add  ? $src1_value + $src2_value
+            : 32'bx;
+         /** ALU: Arithmetic logic unit END **/
          
          /***** REGISTER FILE READ END *****/
          
