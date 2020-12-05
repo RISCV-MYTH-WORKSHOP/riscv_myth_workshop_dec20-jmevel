@@ -41,25 +41,31 @@
       @0
          $reset = *reset;
          
-         $test1[31:0] = 1;
-         $test_d1[31:0] = 32'd1;
-         $test_d4[31:0] = 32'd4;
-         
          // Program Counter: stores the ADDRESS of the current instruction
          $pc[31:0] = 
-                      // We want to make sure we start with the right instruction at address 0
-                      // if we said "after reset: increment by 4 bytes"
-                      // we would actually skip the first instruction
-                      // and start the program with the 2nd instruction which isn't correct
-                      // so we need to make sure we reset to 0 only if $reset was true at the previous transaction
-                      >>1$reset ? '0 // 
-                      
-                      // XLEN is 32 bits so we must increment by 4 because every instruction is 4 bytes long
-                      // If we only add 1, PC will point to the next byte (instructions are stored as bytes in the buffer)
-                      // To actually get to the next valid instruction we need to skip 4 bytes
-                      // hence we have to add 4 
-                     : >>1$pc + 32'd4; 
+             // We want to make sure we start with the right instruction at address 0
+             // if we said "after reset: increment by 4 bytes"
+             // we would actually skip the first instruction
+             // and start the program with the 2nd instruction which isn't correct
+             // so we need to make sure we reset to 0 only if $reset was true at the previous transaction
+             >>1$reset ? '0
+             
+             // XLEN is 32 bits so we must increment by 4 because every instruction is 4 bytes long
+             // If we only add 1, PC will point to the next byte (instructions are stored as bytes in the buffer)
+             // To actually get to the next valid instruction we need to skip 4 bytes
+             // hence we have to add 4 
+            : >>1$pc + 32'd4;
          
+      @1  
+         $imem_rd_addr[M4_IMEM_INDEX_CNT-1:0] = $pc[M4_IMEM_INDEX_CNT+1:2];
+         
+         $imem_rd_en = !$reset;
+      ?$imem_rd_en
+         @1
+            $imem_rd_data[31:0] = /imem[$imem_rd_addr]$instr[31:0];
+            
+      @1
+         $instr[31:0] = $imem_rd_data[31:0];
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
       //       be sure to avoid having unassigned signals (which you might be using for random inputs)
@@ -76,11 +82,11 @@
    //  o data memory
    //  o CPU visualization
    |cpu
-      //m4+imem(@1)    // Args: (read stage)
+      m4+imem(@1)    // Args: (read stage)
       //m4+rf(@1, @1)  // Args: (read stage, write stage) - if equal, no register bypass is required
       //m4+dmem(@4)    // Args: (read/write stage)
    
-   //m4+cpu_viz(@4)    // For visualisation, argument should be at least equal to the last stage of CPU logic
+   m4+cpu_viz(@4)    // For visualisation, argument should be at least equal to the last stage of CPU logic
                        // @4 would work for all labs
 \SV
    endmodule
