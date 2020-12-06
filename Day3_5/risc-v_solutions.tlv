@@ -52,6 +52,14 @@
              // so we need to make sure we reset to 0 only if $reset was true at the previous transaction
              >>1$reset ? '0
              
+             // If the PREVIOUS instruction was a taken branch (otherwise the value is 0)
+             // then we set the value to the PREVIOUS Target Program Counter
+             // Note that we're actually at stage 0 
+             // and want to access a value that happened on stage 1 on the previous transaction
+             // therefore we only need to get the value one clock cycle ago
+             : (>>1$taken_br != 1'b0) ? >>1$br_tgt_pc
+             
+             // Otherwise we just increment the Program Counter
              // XLEN is 32 bits so we must increment by 4 because every instruction is 4 bytes long
              // If we only add 1, PC will point to the next byte (instructions are stored as bytes in the buffer)
              // To actually get to the next valid instruction we need to skip 4 bytes
@@ -64,10 +72,7 @@
          $imem_rd_addr[M4_IMEM_INDEX_CNT-1:0] = $pc[M4_IMEM_INDEX_CNT+1:2];
          
          $imem_rd_en = !$reset;
-      ?$imem_rd_en
-         @1
-            $imem_rd_data[31:0] = /imem[$imem_rd_addr]$instr[31:0];
-            
+         $imem_rd_data[31:0] = $imem_rd_en ? /imem[$imem_rd_addr]$instr[31:0] : >>2$imem_rd_data;
       @1
          $instr[31:0] = $imem_rd_data[31:0];
          /***** FETCH END*****/
@@ -102,6 +107,12 @@
          /** Form immediate value based on instruction type (page 17) **/
          // There's no immediate value in the case of an R-Type
          $imm_valid = $is_i_instr || $is_s_instr || $is_b_instr || $is_u_instr || $is_j_instr;
+         
+      // This kind of condition is NOT like a regular `if($imm_valid){...}`
+      // In case $imm_valid is false, this would feed "don't care" values to $imm[31:0]
+      // In that case (and for other following fields) this is fine
+      // The reason is because if a field isn't valid for a specific instruction type
+      // this field will simply be ignored for further processing so its value doesn't matter
       ?$imm_valid   
          @1
             // {x,} = concatenation
@@ -187,25 +198,44 @@
          
          /** Register File Write **/
          
-         // we never write in register 0
-         // this register always hold the value 0 (RISC-V ISA)
-         $rd_not_x0_register = !($rd[4:0] == 5'b0);
-         $write_in_rf = $reset || ($rd_valid && $rd_not_x0_register);
+         // We never write in register 0
+         // this register always holds the value 0 (RISC-V ISA)
+         $rd_is_x0_register = $rd[4:0] == 5'b0;
          
-      // I could have implemented this in another way by using >>2
-      // to set the value of the last transaction in case of the x0 register
-      // I just prefer this way because it's not directly refering 
-      // to the number of clock cycles we use in our transactions
-      ?$write_in_rf
-         @1
-            $rf_wr_index[4:0] = reset ? 5'b0  : $rd[4:0];
-            $rf_wr_data[31:0] = reset ? 32'b0 : $result;
-            
-      @1
+         $rf_wr_index[4:0] = reset
+            ? 5'b0
+            : ($rd_valid && $rd_is_x0_register) ? >>2$rf_wr_index
+            : $rd[4:0];
+         
+         $rf_wr_data[31:0] = reset 
+            ? 32'b0
+            : ($rd_valid && $rd_is_x0_register) ? >>2$rf_wr_data
+            : $result;
+         
          /** Register File Write END **/
          
          /***** REGISTER FILE END *****/
          
+         /***** BRANCHES *****/
+         
+         // In RISC-V a `jump` is unconditional and a `branch` is conditional 
+         
+         // All B-Type instructions are branches
+         // If this isn't a B-Type then it's not a branch and we default $taken_br to zero
+         $taken_br = !$is_b_instr ? 1'b0 
+            : $is_beq  ? ($src1_value == $src2_value) // branch equal
+            : $is_bne  ? ($src1_value != $src2_value) // branch not equal
+            : $is_blt  ? ($src1_value < $src2_value) ^ ($src1_value[31] != $src2_value[31]) // branch lower than
+            : $is_bge  ? ($src1_value >= $src2_value) ^ ($src1_value[31] != $src2_value[31]) // branch greater than
+            : $is_bltu ? ($src1_value < $src2_value) // branch lower than unsigned
+            : $is_bgeu ? ($src1_value >= $src2_value) // branch greater than unsigned
+            : 1'b0;  // I believe this should never happen. We've already tested the case when it's not a branch
+         
+         // Computing the Target Program Counter
+         // If there's no taken branch this variable will simply not be used
+         $br_tgt_pc[31:0] = $pc + $imm;
+         
+         /***** BRANCHES END*****/
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
       //       be sure to avoid having unassigned signals (which you might be using for random inputs)
