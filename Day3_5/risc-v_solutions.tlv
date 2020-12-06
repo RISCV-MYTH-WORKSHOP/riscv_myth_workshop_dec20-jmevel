@@ -236,6 +236,16 @@
          $br_tgt_pc[31:0] = $pc + $imm;
          
          /***** BRANCHES END*****/
+         
+         /***** TESTBENCH *****/
+         
+         // The sum of our calculation is stored on register 10
+         // using >>5 in order not to stop the simulation immediately after the result
+         // in that way we can see a little more cycles in the waveform (easier to visualize the result)
+         // Check the logs to see the result
+         *passed = |cpu/xreg[10]>>5$value == (1+2+3+4+5+6+7+8+9);
+         
+         /***** TESTBENCH *****/
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
       //       be sure to avoid having unassigned signals (which you might be using for random inputs)
@@ -243,7 +253,7 @@
 
    
    // Assert these to end simulation (before Makerchip cycle limit).
-   *passed = *cyc_cnt > 40;
+   //*passed = *cyc_cnt > 40;
    *failed = 1'b0;
    
    // Macro instantiations for:
