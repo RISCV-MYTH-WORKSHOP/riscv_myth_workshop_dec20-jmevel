@@ -100,7 +100,7 @@
          $is_j_instr = $instr[6:2] ==  5'b11011;
          
          $is_r_instr = $instr[6:2] ==  5'b01011 ||
-                       $instr[6:2] ==? 5'b01x00 ||
+                       $instr[6:2] ==? 5'b011x0 ||
                        $instr[6:2] ==  5'b10100;
          /** Determine instruction type END **/
          
@@ -133,7 +133,6 @@
          $rs1_valid = $is_r_instr || $is_i_instr || $is_s_instr || $is_b_instr;
          $funct3_valid = $rs1_valid; // they're both in the same instruction types
          $rd_valid = $is_r_instr || $is_i_instr || $is_u_instr || $is_j_instr;
-         // opcode is always valid (in all instruction types)
       ?$funct7_valid
          @1
             $funct7[6:0] = $instr[31:25];
@@ -150,6 +149,7 @@
          @1
             $rd[4:0] = $instr[11:7];
       @1
+         // opcode is always valid (in all instruction types)
          $opcode[6:0] = $instr[6:0];
          /** Form other fields' values based on instruction type END **/
          
@@ -165,7 +165,7 @@
          $is_bltu = $dec_bits ==? 11'bx_110_1100011;
          $is_bgeu = $dec_bits ==? 11'bx_111_1100011;
          $is_addi = $dec_bits ==? 11'bx_000_0010011;
-         $is_add  = $dec_bits ==? 11'b0_000_0110011;
+         $is_add  = $dec_bits ==  11'b0_000_0110011;
          
          // Will suppress warnings for all these variables
          `BOGUS_USE($is_beq $is_bne $is_blt $is_bge $is_bltu $is_bgeu $is_addi $is_add);
@@ -200,17 +200,20 @@
          
          // We never write in register 0
          // this register always holds the value 0 (RISC-V ISA)
-         $rd_is_x0_register = $rd[4:0] == 5'b0;
+         $rd_is_not_x0_register = !($rd[4:0] == 5'b0);
+         
+         // checking if everything is valid to write in destination register
+         $rf_wr_en = $rd_valid && !$rd_is_not_x0_register;
          
          $rf_wr_index[4:0] = reset
             ? 5'b0
-            : ($rd_valid && $rd_is_x0_register) ? >>2$rf_wr_index
-            : $rd[4:0];
+            : $rf_wr_en ? $rd[4:0] 
+            : >>2$rf_wr_index; // if write is not enabled we retain the value from the previous transaction
          
          $rf_wr_data[31:0] = reset 
             ? 32'b0
-            : ($rd_valid && $rd_is_x0_register) ? >>2$rf_wr_data
-            : $result;
+            : $rf_wr_en ? $result 
+            : >>2$rf_wr_data; // if write is not enabled we retain the value from the previous transaction
          
          /** Register File Write END **/
          
