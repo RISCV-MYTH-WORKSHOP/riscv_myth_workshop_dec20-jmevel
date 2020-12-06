@@ -41,6 +41,15 @@
       @0
          $reset = *reset;
          
+         // start signal when $reset was high at the last cycle
+         // but has just passed low now
+         $start = !$reset && >>1$reset;
+         
+         // valid when program has just started or when it was valid 3 cycles ago
+         // because our transaction now takes 3 cycles to complete
+         // must me 0 during reset even though it could have been valid 3 cycles before
+         $valid = $reset ? 0 : ($start || >>3$valid);
+         
          /***** PROGRAM COUNTER *****/
          
          // Stores the ADDRESS of the current instruction
@@ -228,13 +237,19 @@
          $taken_br = !$is_b_instr ? 1'b0 
             : $is_beq  ? ($src1_value == $src2_value) // branch equal
             : $is_bne  ? ($src1_value != $src2_value) // branch not equal
+            
+            // $is_blt is important here, when we perfom this instruction 
+            // we check if the counter src1_value (r13) is lower than the limit src2_value (r14)
+            // if that's the case then we must loop again because the computation isn't finished
+            // if that's not the case then our comoutation is finished
+            // and we can finally assign the final value to $value (r10)
             : $is_blt  ? ($src1_value < $src2_value) ^ ($src1_value[31] != $src2_value[31]) // branch lower than
             : $is_bge  ? ($src1_value >= $src2_value) ^ ($src1_value[31] != $src2_value[31]) // branch greater than
             : $is_bltu ? ($src1_value < $src2_value) // branch lower than unsigned
             : $is_bgeu ? ($src1_value >= $src2_value) // branch greater than unsigned
             : 1'b0;  // I believe this should never happen. We've already tested the case when it's not a branch
          
-         // Computing the Target Program Counter
+         // Computing the Target address for Program Counter
          // If there's no taken branch this variable will simply not be used
          $br_tgt_pc[31:0] = $pc + $imm;
          
@@ -248,7 +263,7 @@
          // Check the logs to see the result
          *passed = |cpu/xreg[10]>>5$value == (1+2+3+4+5+6+7+8+9);
          
-         /***** TESTBENCH *****/
+         /***** TESTBENCH END *****/
 
       // Note: Because of the magic we are using for visualisation, if visualisation is enabled below,
       //       be sure to avoid having unassigned signals (which you might be using for random inputs)
