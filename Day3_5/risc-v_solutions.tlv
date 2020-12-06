@@ -52,28 +52,31 @@
          
          /***** PROGRAM COUNTER *****/
          
+         $inc_pc[31:0] = >>3$pc + 32'd4;
+         
          // Stores the ADDRESS of the current instruction
          $pc[31:0] = 
              // We want to make sure we start with the right instruction at address 0
              // if we said "after reset: increment by 4 bytes"
              // we would actually skip the first instruction
              // and start the program with the 2nd instruction which isn't correct
-             // so we need to make sure we reset to 0 only if $reset was true at the previous transaction
+             // so we need to make sure we reset PC to 0 only if $reset was true at the previous transaction
              >>1$reset ? '0
+             
              
              // If the PREVIOUS instruction was a taken branch (otherwise the value is 0)
              // then we set the value to the PREVIOUS Target Program Counter
              // Note that we're actually at stage 0 
              // and want to access a value that happened on stage 1 on the previous transaction
              // therefore we only need to get the value one clock cycle ago
-             : (>>1$taken_br != 1'b0) ? >>1$br_tgt_pc
+             : >>3$valid_taken_br ? >>3$br_tgt_pc
              
              // Otherwise we just increment the Program Counter
              // XLEN is 32 bits so we must increment by 4 because every instruction is 4 bytes long
              // If we only add 1, PC will point to the next byte (instructions are stored as bytes in the buffer)
              // To actually get to the next valid instruction we need to skip 4 bytes
              // hence we have to add 4 
-            : >>1$pc + 32'd4;
+            : $inc_pc;
          
          /***** PROGRAM COUNTER END *****/
       @1  
@@ -81,8 +84,8 @@
          $imem_rd_addr[M4_IMEM_INDEX_CNT-1:0] = $pc[M4_IMEM_INDEX_CNT+1:2];
          
          $imem_rd_en = !$reset;
-         $imem_rd_data[31:0] = $imem_rd_en ? /imem[$imem_rd_addr]$instr[31:0] : >>2$imem_rd_data;
-      @1
+         //$imem_rd_data[31:0] = /imem[$imem_rd_addr]$instr[31:0];
+         
          $instr[31:0] = $imem_rd_data[31:0];
          /***** FETCH END*****/
          
@@ -181,10 +184,9 @@
          /** Instruction decode END **/
          
          /***** DECODE END *****/
+      @2
+         /***** REGISTER FILE READ *****/
          
-         /***** REGISTER FILE *****/
-         
-         /** Register File Read **/
          // Inputs: reading the sources that are specified in the instructions
          // if reset: back to original zero values
          // (cf (line 123): https://raw.githubusercontent.com/stevehoover/RISC-V_MYTH_Workshop/c1719d5b338896577b79ee76c2f443ca2a76e14f/tlv_lib/risc-v_shell_lib.tlv)
@@ -196,37 +198,30 @@
          // Outputs: Reading the destination registers
          $src1_value[31:0] = $rf_rd_data1;
          $src2_value[31:0] = $rf_rd_data2;
-         /** Register File Read END **/
-         
-         /** ALU: Arithmetic logic unit **/
+         /***** REGISTER FILE READ END *****/
+      @3   
+         /***** ALU: ARITHMETIC LOGIC UNIT *****/
          $result[31:0] = 
               $is_addi ? $src1_value + $imm
             : $is_add  ? $src1_value + $src2_value
             : 32'bx;
-         /** ALU: Arithmetic logic unit END**/
+         /***** ALU: ARITHMETIC LOGIC UNIT END *****/
          
-         /** Register File Write **/
+         /***** REGISTER FILE WRITE **/
          
          // We never write in register 0
          // this register always holds the value 0 (RISC-V ISA)
          $rd_is_not_x0_register = !($rd[4:0] == 5'b0);
          
          // checking if everything is valid to write in destination register
-         $rf_wr_en = $rd_valid && $rd_is_not_x0_register;
+         // with $valid we avoid writing to RF for invalid instructions
+         $rf_wr_en = $valid && $rd_valid && $rd_is_not_x0_register;
          
-         $rf_wr_index[4:0] = reset
-            ? 5'b0
-            : $rf_wr_en ? $rd[4:0] 
-            : >>2$rf_wr_index; // if write is not enabled we retain the value from the previous transaction
+         $rf_wr_index[4:0] = $rd[4:0];
          
-         $rf_wr_data[31:0] = reset 
-            ? 32'b0
-            : $rf_wr_en ? $result 
-            : >>2$rf_wr_data; // if write is not enabled we retain the value from the previous transaction
+         $rf_wr_data[31:0] = $result; 
          
-         /** Register File Write END **/
-         
-         /***** REGISTER FILE END *****/
+         /***** REGISTER FILE WRITE END *****/
          
          /***** BRANCHES *****/
          
@@ -249,11 +244,16 @@
             : $is_bgeu ? ($src1_value >= $src2_value) // branch greater than unsigned
             : 1'b0;  // I believe this should never happen. We've already tested the case when it's not a branch
          
+         // only if the cycle is valid
+         // AND if there is a taken branch (different than 0)
+         // this will be used to avoid redirecting PC for invalid (branch) instructions
+         $valid_taken_br = $valid && $taken_br;
+         
          // Computing the Target address for Program Counter
          // If there's no taken branch this variable will simply not be used
          $br_tgt_pc[31:0] = $pc + $imm;
          
-         /***** BRANCHES END*****/
+         /***** BRANCHES END *****/
          
          /***** TESTBENCH *****/
          
@@ -281,7 +281,7 @@
    //  o CPU visualization
    |cpu
       m4+imem(@1)    // Args: (read stage)
-      m4+rf(@1, @1)  // Args: (read stage, write stage) - if equal, no register bypass is required
+      m4+rf(@2, @3)  // Args: (read stage, write stage) - if equal, no register bypass is required
       //m4+dmem(@4)    // Args: (read/write stage)
    
    m4+cpu_viz(@4)    // For visualisation, argument should be at least equal to the last stage of CPU logic
