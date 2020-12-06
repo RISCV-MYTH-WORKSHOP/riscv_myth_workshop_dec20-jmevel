@@ -203,7 +203,7 @@
          $rd_is_not_x0_register = !($rd[4:0] == 5'b0);
          
          // checking if everything is valid to write in destination register
-         $rf_wr_en = $rd_valid && !$rd_is_not_x0_register;
+         $rf_wr_en = $rd_valid && $rd_is_not_x0_register;
          
          $rf_wr_index[4:0] = reset
             ? 5'b0
