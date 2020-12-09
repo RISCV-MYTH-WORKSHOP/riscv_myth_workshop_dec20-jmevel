@@ -1,0 +1,9 @@
+riscv64-unknown-elf-gcc -Ofast -mabi=lp64 -march=rv64i -o 1to9_custom.o 1to9_custom.c load_mine.S 
+riscv64-unknown-elf-gcc -Ofast -mabi=lp64 -march=rv64i -o 1to9_custom.o 1to9_custom.c load_his.S 
+
+spike pk 1to9_custom.o
+spike -d pk 1to9_custom.o
+
+riscv64-unknown-elf-objdump -d 1to9_custom.o | less
+    /load
+    n

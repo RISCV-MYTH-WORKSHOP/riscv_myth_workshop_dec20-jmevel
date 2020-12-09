@@ -1,0 +1,10 @@
+riscv64-unknown-elf-gcc -Ofast -mabi=lp64 -march=rv64i -o unsignedHighest.o unsignedHighest.c
+spike pk unsignedHighest.o
+
+riscv64-unknown-elf-gcc -Ofast -mabi=lp64 -march=rv64i -o signedHighest.o signedHighest.c
+spike pk signedHighest.o
+
+spike -d pk signedHighest.o
+    until pc 0 100d8
+
+riscv64-unknown-elf-objdump -d signedHighest.o | less
